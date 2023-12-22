@@ -1,0 +1,171 @@
+.foovideo-cropper-container {
+  direction: ltr;
+  font-size: 0;
+  line-height: 0;
+  position: relative;
+  touch-action: none;
+  user-select: none;
+}
+
+.foovideo-cropper-container,
+.foovideo-cropper-wrap-box,
+.foovideo-cropper-canvas,
+.foovideo-cropper-drag-box,
+.foovideo-cropper-crop-box,
+.foovideo-cropper-face,
+.foovideo-cropper-modal {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  top: 0;
+}
+
+.foovideo-cropper-drag-box {
+  cursor: crosshair;
+}
+
+.foovideo-cropper-view-box {
+  display: block;
+  height: 100%;
+  outline: 1px solid #39f;
+  outline-color: rgba(51, 153, 255, 0.75);
+  overflow: hidden;
+  width: 100%;
+}
+
+.foovideo-cropper-mask {
+  background-color: rgba(0, 0, 0, 0.5);
+}
+
+.foovideo-cropper-face {
+  background-color: #fff;
+  opacity: 0;
+  cursor: move;
+}
+
+.foovideo-cropper-point {
+  position: absolute;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background-color: #39f;
+
+  &.point-nw {
+    left: -3px;
+    top: -3px;
+    cursor: nwse-resize;
+  }
+
+  &.point-n {
+    left: 50%;
+    transform: translateX(-50%);
+    top: -3px;
+    cursor: ns-resize;
+  }
+
+  &.point-ne {
+    right: -3px;
+    top: -3px;
+    cursor: nesw-resize;
+  }
+
+  &.point-w {
+    left: -3px;
+    top: 50%;
+    transform: translateY(-50%);
+    cursor: ew-resize;
+  }
+
+  &.point-e {
+    right: -3px;
+    top: 50%;
+    transform: translateY(-50%);
+    cursor: ew-resize;
+  }
+
+  &.point-sw {
+    left: -3px;
+    bottom: -3px;
+    cursor: nesw-resize;
+  }
+
+  &.point-s {
+    left: 50%;
+    transform: translateX(-50%);
+    bottom: -3px;
+    cursor: ns-resize;
+  }
+
+  &.point-se {
+    right: -3px;
+    bottom: -3px;
+    cursor: nwse-resize;
+  }
+}
+
+.foovideo-cropper-line {
+  display: block;
+  height: 100%;
+  position: absolute;
+  width: 100%;
+  background-color: #39f;
+
+  &.line-e {
+    cursor: ew-resize;
+    right: -1px;
+    top: 0;
+    width: 2px;
+  }
+
+  &.line-n {
+    cursor: ns-resize;
+    height: 2px;
+    left: 0;
+    top: -1px;
+  }
+
+  &.line-w {
+    cursor: ew-resize;
+    left: -1px;
+    top: 0;
+    width: 2px;
+  }
+
+  &.line-s {
+    bottom: -1px;
+    cursor: ns-resize;
+    height: 2px;
+    left: 0;
+  }
+}
+
+.foovideo-cropper-invisible {
+  opacity: 0;
+}
+
+.foovideo-cropper-hide {
+  display: block;
+  height: 0;
+  position: absolute;
+  width: 0;
+}
+
+.foovideo-cropper-hidden {
+  display: none !important;
+}
+
+.foovideo-cropper-move {
+  cursor: move;
+}
+
+.foovideo-cropper-crop {
+  cursor: crosshair;
+}
+
+.foovideo-cropper-disabled .foovideo-cropper-drag-box,
+.foovideo-cropper-disabled .foovideo-cropper-face,
+.foovideo-cropper-disabled .foovideo-cropper-line,
+.foovideo-cropper-disabled .foovideo-cropper-point {
+  cursor: not-allowed;
+}

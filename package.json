@@ -18,27 +18,27 @@
     }
   },
   "scripts": {
-    "jiti-fix": "find ./dist -type f -exec sed -i '' 's|file://||g' {} \\;",
-    "stub": "unbuild --stub && npm run jiti-fix",
-    "dev": "vite",
-    "build": "unbuild",
-    "build:example": "vite build",
-    "preview:exampel": "vite preview",
-    "prettier": "prettier --config .prettierrc  --write . "
+    "build": "npm run build:esm ",
+    "build:example": "vite build --config vite.config.dev.ts",
+    "preview:example": "vite preview --config vite.config.dev.ts",
+    "build:esm": "rm -rf ./es && vite build --config vite.config.esm.ts",
+    "build:umd": "rm -rf ./umd && vite build --config vite.config.umd.ts",
+    "dev": "vite --config vite.config.dev.ts"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
+  "resolutions": {
+    "@pixi/core": "7.2.4",
+    "@pixi/display": "7.2.4",
+    "@pixi/graphics": "7.2.4"
+  },
   "dependencies": {
-    "@pixi/graphics-smooth": "^1.1.0",
+    "@pixi/graphics-smooth": "1.1.0",
     "eventemitter3": "^5.0.1",
     "inversify": "^6.0.1",
     "inversify-inject-decorators": "^3.1.0",
     "lodash": "^4.17.21",
     "mousetrap": "^1.6.5",
-    "pixi.js": "^7.2.4",
-    "prettier": "^3.0.0",
-    "reflect-metadata": "^0.1.13",
+    "pixi.js": "7.2.4",
+    "reflect-metadata": "^0.2.2",
     "tippy.js": "^6.3.7"
   },
   "devDependencies": {
@@ -50,7 +50,8 @@
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "tslib": "^2.6.1",
-    "unbuild": "^1.2.1",
-    "vite": "^4.3.9"
+    "vite": "^4.3.9",
+    "vite-plugin-dts": "^3.9.1"
   }
+  
 }

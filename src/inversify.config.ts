@@ -1,13 +1,18 @@
-import 'reflect-metadata';
-
-import { Container, decorate, injectable } from 'inversify';
-import { CoreService, ICoreService } from './services/core';
-import { ImgService, IImgService } from './services/img';
-import { ShapeService, IShapeService } from './services/shape';
-import { DrawFaceService, IDrawFaceService } from './services/drawFace';
-import { CropService, ICropService } from './services/crop';
-import { IDrawService, DrawService } from './services/draw';
 import { EventEmitter } from 'eventemitter3';
+import { Container, decorate, injectable } from 'inversify';
+import { CoreService } from './services/core';
+import { ICoreService } from './services/core/interface';
+import { CropService } from './services/crop';
+import { ICropService } from './services/crop/interface';
+import { DrawGroupService } from './services/draw-group';
+import { IDrawGroupService } from './services/draw-group/interface';
+import { FaceService } from './services/face';
+import { IFaceService } from './services/face/interface';
+import { ImgService } from './services/img';
+import { IImgService } from './services/img/interface';
+import { ShapeService } from './services/shape';
+import { IShapeService } from './services/shape/interface';
+import { Shape } from './services/shape/interface';
 import { TYPES } from './types';
 
 // @see https://github.com/inversify/InversifyJS/blob/master/wiki/container_api.md#defaultscope
@@ -18,21 +23,30 @@ decorate(injectable(), EventEmitter);
 
 let idCounter = 0;
 export const createContainer = () => {
-  const container = new Container();
+  const container = new Container({ defaultScope: 'Singleton' });
 
   container.bind<ICoreService>(TYPES.ICore).to(CoreService).inSingletonScope();
 
   container.bind<IImgService>(TYPES.IImg).to(ImgService).inSingletonScope();
 
-  container.bind<IShapeService>(TYPES.IShape).to(ShapeService).inSingletonScope();
+  container
+    .bind<IShapeService<Shape>>(TYPES.IShape)
+    .to(ShapeService<Shape>)
+    .inSingletonScope();
 
-  container.bind<IDrawService>(TYPES.IDraw).to(DrawService).inSingletonScope();
+  container.bind<IDrawGroupService>(TYPES.IDrawGroup).to(DrawGroupService).inSingletonScope();
 
-  container.bind<IDrawFaceService>(TYPES.IDrawFace).to(DrawFaceService).inSingletonScope();
+  container.bind<IFaceService>(TYPES.IFace).to(FaceService).inSingletonScope();
 
   container.bind<ICropService>(TYPES.ICrop).to(CropService).inSingletonScope();
 
   return container;
 };
+
+// export const destroy = (container: Container) => {
+//   // 获取所有可重置服务
+//   // const resettableServices = container.getAll<IResettableService>('IResettableService');
+//   // resettableServices.forEach((service) => service.reset());
+// };
 
 export type { Container };

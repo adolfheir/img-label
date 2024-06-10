@@ -1,4 +1,7 @@
 /* 此处维护container作为缩放矩阵的画布 */
+import { cloneDeep } from 'lodash';
+import { SmoothGraphics as Graphics, DashLineShader } from '@pixi/graphics-smooth';
+import EventEmitter from 'eventemitter3';
 import { injectable } from 'inversify';
 import {
   Application,
@@ -12,11 +15,8 @@ import {
   Rectangle,
   Transform,
 } from 'pixi.js';
-import { SmoothGraphics as Graphics, DashLineShader } from '@pixi/graphics-smooth';
 import { addEventListener } from '../../helpers/addEventListener';
-import type { ICoreService, Limit } from './interface';
-
-export type { ICoreService } from './interface';
+import { ICoreService, Limit, CoreServiceEvent } from './interface';
 
 /* 变换矩阵 */
 /* a:水平缩放，d垂直缩放，b:旋转, c:倾斜 tx:水平偏移 ty:垂直偏移 */
@@ -27,6 +27,9 @@ export type { ICoreService } from './interface';
 // applyInverse逆变换:  从世界坐标系转换到子元素的局部坐标系
 // apply: 从子元素的局部坐标系转换到世界坐标系
 
+// globalpoint 此组件内可以理解为相对于canvas原点
+// localpoint 此实现内理解为相对于坐标轴原点
+
 /* 默认缩放 */
 
 const defaultLimit: Limit = {
@@ -34,9 +37,8 @@ const defaultLimit: Limit = {
   minZoom: 0.01,
   padding: 50,
 };
-
 @injectable()
-export class CoreService implements ICoreService {
+export class CoreService extends EventEmitter<`${CoreServiceEvent}`> implements ICoreService {
   public dom?: HTMLElement;
 
   /* 缓存所有清理函数 */
@@ -45,45 +47,53 @@ export class CoreService implements ICoreService {
   /* pixi */
   public app: Application<HTMLCanvasElement>;
   public globalContainer: Container<DisplayObject>;
-  public boxContainer: Container<DisplayObject>;
+  public minScreenContainer: Container<DisplayObject>; //为了屏幕截图 保证舞台最小范围
 
   private boxGraphics?: Graphics; //截图框
-  private limit: Limit = defaultLimit;
+  private limit: Limit = cloneDeep(defaultLimit);
 
   private isZoomAndScaleAbel?: boolean;
-
   constructor() {
+    super();
     this.app = new Application<HTMLCanvasElement>({
       //透明
       backgroundAlpha: 0,
       //抗锯齿
       antialias: true,
+
+      /* 模糊 */
+      autoDensity: true,
     });
+    (globalThis as any).__PIXI_APP__ = this.app;
     // 创建一个container
     this.globalContainer = new Container();
     this.globalContainer.sortableChildren = true; //层级控制
-    this.boxContainer = new Container();
+    this.minScreenContainer = new Container();
   }
 
   async init(dom: HTMLElement) {
     //dom 处理
+    let { width, height } = dom.getBoundingClientRect();
+    this.app.renderer.resize(width, height);
     dom.appendChild(this.app.view);
+    dom.style.cursor = 'pointer';
     this.dom = dom;
+
     this.destoryfnList.push(
       addEventListener(dom, 'wheel', (event) => event.preventDefault()),
       addEventListener(dom, 'contextmenu', (event) => event.preventDefault()),
-      // addEventListener(dom, "click", event => event.preventDefault())
+      addEventListener(window, 'resize', (event) => {
+        let { width, height } = dom.getBoundingClientRect();
+        this.app.renderer.resize(width, height);
+      }),
     );
 
     //设置一个空container截屏用
     let graphics = new Graphics();
-    // graphics.beginFill(0xFF0000); // 设置填充颜色为红色
     graphics.drawShape(this.app.renderer.screen);
-    // graphics.endFill()
     this.boxGraphics = graphics;
-    // graphics.zIndex = -99
-    this.boxContainer.addChild(this.boxGraphics);
-    this.app.stage.addChild(this.boxContainer);
+    this.minScreenContainer.addChild(this.boxGraphics);
+    this.app.stage.addChild(this.minScreenContainer);
 
     //全局container
     this.app.stage.addChild(this.globalContainer);
@@ -136,38 +146,78 @@ export class CoreService implements ICoreService {
       let delta = event.deltaY;
       let scalePoint = event.global;
 
-      let newMatrix = this.globalContainer.localTransform.clone();
-      let prevZoom = newMatrix.a; //等比缩放
-      let zoomFactor = 0.998 ** delta;
-      let newZoom = prevZoom * zoomFactor;
+      this.scaleTo(delta, scalePoint);
 
-      //limit
-      newZoom = Math.max(this.limit.minZoom, Math.min(this.limit.maxZoom, newZoom));
+      // let newMatrix = this.globalContainer.localTransform.clone();
+      // let prevZoom = newMatrix.a; //等比缩放
+      // let zoomFactor = 0.998 ** delta;
+      // let newZoom = prevZoom * zoomFactor;
 
-      zoomFactor = newZoom / prevZoom; //重新计算缩放因子
-      newMatrix.translate(-scalePoint.x, -scalePoint.y); // 先将点移动到原点
-      newMatrix.scale(zoomFactor, zoomFactor);
-      newMatrix.translate(scalePoint.x, scalePoint.y); // 将点移动回原来的位置
+      // //limit
+      // newZoom = Math.max(this.limit.minZoom, Math.min(this.limit.maxZoom, newZoom));
 
-      this.globalContainer.localTransform.toString();
-      this.applyMatrix(newMatrix);
+      // zoomFactor = newZoom / prevZoom; //重新计算缩放因子
+      // newMatrix.translate(-scalePoint.x, -scalePoint.y); // 先将点移动到原点
+      // newMatrix.scale(zoomFactor, zoomFactor);
+      // newMatrix.translate(scalePoint.x, scalePoint.y); // 将点移动回原来的位置
+
+      // this.globalContainer.localTransform.toString();
+      // this.applyMatrix(newMatrix);
     });
 
     /* ============================== 测试 =============================== */
     // this.globalContainer.interactive = true
-    // this.boxContainer.interactive = true
-    // this.globalContainer.addEventListener("click", (e) => {
-    //   console.log("click globalContainer",)
+    // this.minScreenContainer.interactive = true
+    // this.globalContainer.addEventListener('click', (e) => {
+    //   console.log('click globalContainer', e);
     //   // e.stopPropagation()
-    // })
-    // this.boxContainer.addEventListener("click", (e) => {
-    //   console.log("click boxGraphics",)
+    // });
+    // this.minScreenContainer.addEventListener('click', (e) => {
+    //   console.log('click boxGraphics', e);
     //   // e.stopPropagation()
-    // })
-    // this.app.stage.addEventListener("click", (e) => {
-    //   console.log("click stage", e.target === this.globalContainer, e.target === this.boxContainer)
-    //   // e.stopPropagation()
-    // })
+    // });
+    // this.app.stage.addEventListener('click', (e) => {
+    //   console.log('click stage', e);
+    //   let wordPoint = e.global.clone();
+    //   let loclaPoint = this.globalContainer.localTransform.applyInverse(wordPoint);
+    //   let wordPoint2 = this.globalContainer.localTransform.apply(loclaPoint);
+    //   console.log('wordPoint', wordPoint, loclaPoint, wordPoint2);
+    // });
+  }
+
+  scaleTo(
+    delta: number,
+    origin?: {
+      x: number;
+      y: number;
+    },
+  ) {
+    if (!this.isZoomAndScaleAbel) return;
+
+    let scalePoint = origin;
+    if (!scalePoint) {
+      let { width = 0, height = 0 } = this.dom?.getBoundingClientRect() ?? {};
+      scalePoint = {
+        x: width / 2,
+        y: height / 2,
+      };
+    }
+
+    let newMatrix = this.globalContainer.localTransform.clone();
+    let prevZoom = newMatrix.a; //等比缩放
+    let zoomFactor = 0.998 ** delta;
+    let newZoom = prevZoom * zoomFactor;
+
+    //limit
+    newZoom = Math.max(this.limit.minZoom, Math.min(this.limit.maxZoom, newZoom));
+
+    zoomFactor = newZoom / prevZoom; //重新计算缩放因子
+    newMatrix.translate(-scalePoint.x, -scalePoint.y); // 先将点移动到原点
+    newMatrix.scale(zoomFactor, zoomFactor);
+    newMatrix.translate(scalePoint.x, scalePoint.y); // 将点移动回原来的位置
+
+    this.globalContainer.localTransform.toString();
+    this.applyMatrix(newMatrix);
   }
 
   applyMatrix(newMatrix: Matrix) {
@@ -206,6 +256,10 @@ export class CoreService implements ICoreService {
       0,
       0,
     );
+    //渲染的时候回同步 这边立即同步
+    this.globalContainer.updateTransform();
+
+    this.emit(CoreServiceEvent['onTransformChange'], this.globalContainer.localTransform);
   }
 
   setLimit(limit: Partial<Limit>) {
@@ -217,7 +271,21 @@ export class CoreService implements ICoreService {
   }
 
   async extractScreenCanvas() {
-    return await this.app.renderer.extract.canvas(this.app.stage, this.app.renderer.screen);
+    let stageBounds = this.app.stage.getBounds();
+    let x = 0;
+    let y = 0;
+    let w = this.app.renderer.screen.width;
+    let h = this.app.renderer.screen.height;
+    //保证原点坐标
+    if (stageBounds.x < 0) {
+      x = Math.abs(stageBounds.x);
+    }
+    if (stageBounds.y < 0) {
+      y = Math.abs(stageBounds.y);
+    }
+    let rect: Rectangle = new Rectangle(x, y, w, h);
+
+    return await this.app.renderer.extract.canvas(this.app.stage, rect);
   }
 
   destroy() {
@@ -231,6 +299,7 @@ export class CoreService implements ICoreService {
         }
       }
     }
+    this.removeAllListeners();
 
     this.app.destroy(true);
   }

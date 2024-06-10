@@ -1,4 +1,6 @@
-import { Rect } from './interface';
+import { Matrix, Texture, WRAP_MODES, SCALE_MODES } from 'pixi.js';
+import { Shape } from './interface';
+
 type Point = {
   x: number;
   y: number;
@@ -60,7 +62,7 @@ export function pointInPolygon(point: Point, polygon: Polygon): boolean {
   return inside;
 }
 
-export function rectListToPolygon(rect: Rect): Polygon {
+export function rectListToPolygon(rect: Shape): Polygon {
   const { x, y, w, h } = rect;
 
   const topLeft: Point = { x, y };
@@ -70,3 +72,35 @@ export function rectListToPolygon(rect: Rect): Polygon {
 
   return [topLeft, topRight, bottomRight, bottomLeft];
 }
+
+export const getTexture = (props: { h: number; w: number; from: string; to: string }) => {
+  const { w, h } = props;
+  const linH = 1;
+  const c = document.createElement('canvas');
+  c.width = w;
+  c.height = h;
+  const ctx = c.getContext('2d')!;
+  /* 画动画 */
+  ctx.save();
+  var linearGrad = ctx.createLinearGradient(0, 0, 0, h);
+  linearGrad.addColorStop(0, props?.from);
+  linearGrad.addColorStop(1, props?.to);
+  ctx.fillStyle = linearGrad;
+  // ctx.fillRect(0, rect.y, 0, rect.y + animateY);
+  ctx.fillRect(0, 0, w, h);
+  ctx.fill();
+  ctx.restore();
+  /* 最下面的线 */
+  ctx.save();
+  ctx.fillStyle = 'rgba(255, 58, 69, 1)';
+  ctx.fillRect(0, h - linH, w, linH);
+  ctx.fill();
+
+  // let url = c.toDataURL('image/png');
+  // console.log('url', url);
+
+  let texture = Texture.from(c);
+  texture.baseTexture.wrapMode = WRAP_MODES.CLAMP;
+  texture.baseTexture.scaleMode = SCALE_MODES.NEAREST;
+  return texture;
+};

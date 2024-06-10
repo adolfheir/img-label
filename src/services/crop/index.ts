@@ -1,29 +1,14 @@
-import { injectable, inject } from 'inversify';
-import {
-  Assets,
-  Sprite,
-  Container,
-  DisplayObject,
-  FederatedPointerEvent,
-  ObservablePoint,
-  Point,
-  Matrix,
-  Transform,
-} from 'pixi.js';
-import { TYPES } from '../../types';
 import { isNumber, get } from 'lodash';
-import type { ICoreService } from '../core/interface';
-import type { ICropService } from './interface';
-export type { ICropService } from './interface';
-import { Event as CustomEvent } from './interface';
-import TEMPLATE from './template';
-import { addClass, removeClass, set, getOuterWidth, getOuterHeight } from './dom';
+import EventEmitter from 'eventemitter3';
+import { injectable, inject } from 'inversify';
 import { addEventListener } from '../../helpers/addEventListener';
-import { getData, getPointer, getOffset, getTransforms } from './utils';
+import { TYPES } from '../../types';
+import type { ICoreService } from '../core/interface';
 import {
-  NAMESPACE,
-  //class
+  NAMESPACE, //class
   CLASS_MASK,
+  CLASS_HIDDEN,
+  /* action */
   DATA_ACTION,
   ACTION_CROP,
   ACTION_MOVE,
@@ -34,60 +19,23 @@ import {
   ACTION_SOUTH,
   ACTION_SOUTH_EAST,
   ACTION_SOUTH_WEST,
-  ACTION_WEST,
-  CLASS_HIDDEN,
-  // event
+  ACTION_WEST, // event
   EVENT_POINTER_DOWN,
   EVENT_POINTER_MOVE,
-  EVENT_POINTER_UP,
-  EVENT_CROP_CHANGE,
-  EVENT_CROP_START,
-  EVENT_CROP_END,
-  EVENT_WHEEL,
-
-  // 正则
+  EVENT_POINTER_UP, // 正则
   REGEXP_ACTIONS,
   REGEXP_SPACES,
+  /* 数据 */
+  INIT_CROP_BOX_DATA,
 } from './constants';
-import EventEmitter from 'eventemitter3';
+import { addClass, removeClass, set, getOuterWidth, getOuterHeight } from './dom';
 import './index.css';
-
-type CropBoxData = {
-  width: number;
-  height: number;
-  left: number;
-  top: number;
-  minWidth: number;
-  minHeight: number;
-  maxWidth: number;
-  maxHeight: number;
-  minLeft: number;
-  maxLeft: number;
-  minTop: number;
-  maxTop: number;
-  oldLeft: number;
-  oldTop: number;
-};
-
-const initCropBoxData = {
-  width: 0,
-  height: 0,
-  left: 0,
-  top: 0,
-  minWidth: 0,
-  minHeight: 0,
-  maxWidth: 0,
-  maxHeight: 0,
-  minLeft: 0,
-  maxLeft: 0,
-  minTop: 0,
-  maxTop: 0,
-  oldLeft: 0,
-  oldTop: 0,
-};
+import { CropServiceEvent, ICropService, CropBoxData, InitialCropBoxData, Option, InitOption } from './interface';
+import TEMPLATE from './template';
+import { getData, getPointer, getOffset, getTransforms } from './utils';
 
 @injectable()
-export class CropService extends EventEmitter<`${CustomEvent}`> implements ICropService {
+export class CropService extends EventEmitter<`${CropServiceEvent}`> implements ICropService {
   @inject(TYPES.ICore) private readonly CoreService!: ICoreService;
 
   /* 缓存所有清理函数 */
@@ -132,7 +80,11 @@ export class CropService extends EventEmitter<`${CustomEvent}`> implements ICrop
     Object.assign(this, props);
   }
 
-  init() {
+  init(props?: InitOption) {
+    this.destroy();
+
+    /* ============================== split =============================== */
+
     const element = this.CoreService.dom;
 
     if (!element) {
@@ -140,10 +92,8 @@ export class CropService extends EventEmitter<`${CustomEvent}`> implements ICrop
     }
 
     //建立dom
-
     const template = document.createElement('div');
     template.innerHTML = TEMPLATE;
-
     const container = template.querySelector(`.${NAMESPACE}-container`)!;
     const dragBox = container.querySelector(`.${NAMESPACE}-drag-box`)!;
     const cropBox = container.querySelector(`.${NAMESPACE}-crop-box`)!;
@@ -152,7 +102,9 @@ export class CropService extends EventEmitter<`${CustomEvent}`> implements ICrop
     set(element, {
       position: 'relative',
     });
+
     element.appendChild(container);
+
     this.container = container;
     this.dragBox = dragBox;
     this.cropBox = cropBox;
@@ -172,10 +124,22 @@ export class CropService extends EventEmitter<`${CustomEvent}`> implements ICrop
       });
     this.destoryfnList.push(handleCropStart, handleCropMove, ...fnList);
 
+    /* ============================== split =============================== */
+    const { initialCropBoxData, previewDom, ...option } = props ?? {};
+    this.setOptions(option);
     //初始化渲染
     this.initContainer();
     this.initCropBox();
     this.limitCropBox(true, true);
+
+    if (!!previewDom) {
+      this.setPreview(previewDom);
+    }
+
+    //默认值
+    if (!!initialCropBoxData) {
+      this.setDefaultCropBox(initialCropBoxData);
+    }
   }
 
   async destroy() {
@@ -195,12 +159,24 @@ export class CropService extends EventEmitter<`${CustomEvent}`> implements ICrop
     if (this.container) {
       this.element?.removeChild?.(this.container);
     }
-    //清理对象
     this.container = undefined;
     this.dragBox = undefined;
     this.cropBox = undefined;
     this.viewBox = undefined;
     this.element = undefined;
+    this.previewBox = undefined;
+
+    //清理临时时变量
+    this.pointer = undefined;
+    this.action = undefined;
+    this.cropping = false;
+    this.cropped = false;
+    this.containerData = {
+      width: 0,
+      height: 0,
+    };
+
+    this.cropBoxData = INIT_CROP_BOX_DATA;
   }
 
   /* ============================== event =============================== */
@@ -248,8 +224,8 @@ export class CropService extends EventEmitter<`${CustomEvent}`> implements ICrop
     }
 
     let hasCrop = this.cropBoxData!.width !== 0 && this.cropBoxData!.height !== 0;
-    this.emit(CustomEvent['onCropStart'], hasCrop ? this.cropBoxData : null);
-    this.emit(CustomEvent['onCropChange'], hasCrop ? this.cropBoxData : null);
+    this.emit(CropServiceEvent['onCropStart'], hasCrop ? this.cropBoxData : null);
+    this.emit(CropServiceEvent['onCropChange'], hasCrop ? this.cropBoxData : null);
   }
 
   onCropMove(event: MouseEvent | PointerEvent | TouchEvent): void {
@@ -277,8 +253,8 @@ export class CropService extends EventEmitter<`${CustomEvent}`> implements ICrop
       // removeClass(this.dragBox, CLASS_MASK);
     }
     let hasCrop = get(this, 'cropBoxData.width', 0) !== 0 && get(this, 'cropBoxData.height', 0) !== 0;
-    this.emit(CustomEvent['onCropChange'], hasCrop ? this.cropBoxData : null);
-    hasCrop && this.emit(CustomEvent['onCropEnd'], hasCrop ? this.cropBoxData : null);
+    this.emit(CropServiceEvent['onCropChange'], hasCrop ? this.cropBoxData : null);
+    hasCrop && this.emit(CropServiceEvent['onCropEnd'], hasCrop ? this.cropBoxData : null);
   }
 
   change(event: MouseEvent | PointerEvent | TouchEvent): void {
@@ -622,8 +598,8 @@ export class CropService extends EventEmitter<`${CustomEvent}`> implements ICrop
     this.pointer!.startY = this.pointer!.endY;
   }
 
-  /* ============================== render =============================== */
-  private cropBoxData: CropBoxData = initCropBoxData;
+  /* ============================== cropbox 逻辑 =============================== */
+  private cropBoxData: CropBoxData = INIT_CROP_BOX_DATA;
 
   initContainer() {
     //通过样式设置
@@ -775,13 +751,42 @@ export class CropService extends EventEmitter<`${CustomEvent}`> implements ICrop
     }
   }
 
-  /* ============================== 截图框内显示图片 =============================== */
-  private previewBox?: HTMLElement;
-  setPreview(dom: HTMLElement) {
-    this.previewBox = dom;
-    this.viewBox?.append(dom);
+  getCropData() {
+    return this.cropBoxData;
+  }
+  setDefaultCropBox(initialCropBoxData: InitialCropBoxData) {
+    if (!this.container) {
+      console.error('请先初始化容器');
+      return;
+    }
+
+    //设置截图数据
+    if (!!initialCropBoxData) {
+      this.cropped = true;
+
+      if (this.showMask) {
+        addClass(this.dragBox!, CLASS_MASK);
+      }
+
+      removeClass(this.cropBox!, CLASS_HIDDEN);
+      //@ts-ignore
+      this.cropBoxData = { ...this.cropBoxData, ...initialCropBoxData };
+      //@ts-ignore
+      this.renderCropBox();
+      let hasCrop = get(this, 'cropBoxData.width', 0) !== 0 && get(this, 'cropBoxData.height', 0) !== 0;
+      this.emit(CropServiceEvent['onCropChange'], hasCrop ? this.cropBoxData : null);
+      //@ts-ignore
+      hasCrop && this.emit(CropServiceEvent['onCropEnd'], hasCrop ? this.cropBoxData : null);
+    }
   }
 
+  /* ==============================  预览图 =============================== */
+  private previewBox?: HTMLCanvasElement;
+  setPreview(dom: HTMLCanvasElement) {
+    this.previewBox = dom;
+    this.viewBox?.append(dom);
+    this.renderPreview();
+  }
   renderPreview() {
     if (!this.showMask || !this.previewBox) return;
 
@@ -810,4 +815,6 @@ export class CropService extends EventEmitter<`${CustomEvent}`> implements ICrop
       ),
     );
   }
+
+  /* ============================== misc =============================== */
 }

@@ -1,4 +1,10 @@
+import EventEmitter from 'eventemitter3';
 import { Application, Sprite, Container, DisplayObject, Matrix, ICanvas } from 'pixi.js';
+
+export enum CoreServiceEvent {
+  onTransformChange = 'onTransfirmChange',
+}
+
 /* 默认缩放 */
 export type Limit = {
   maxZoom: number;
@@ -13,13 +19,20 @@ export type Limit = {
   };
 };
 
-export interface ICoreService {
+export interface ICoreService extends EventEmitter<`${CoreServiceEvent}`> {
   dom?: HTMLElement;
   app: Application<HTMLCanvasElement>;
   globalContainer: Container<DisplayObject>;
 
   init: (dom: HTMLDivElement) => Promise<void> | void;
   ableZoomAndScale: (able: boolean) => void;
+  scaleTo: (
+    delta: number,
+    origin?: {
+      x: number;
+      y: number;
+    },
+  ) => void;
   applyMatrix: (newMatrix: Matrix) => void;
   extractScreenCanvas: () => Promise<ICanvas>;
 

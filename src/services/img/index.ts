@@ -1,20 +1,8 @@
 import { injectable, inject } from 'inversify';
-import {
-  Assets,
-  Sprite,
-  Container,
-  DisplayObject,
-  FederatedPointerEvent,
-  ObservablePoint,
-  Point,
-  Matrix,
-  Transform,
-} from 'pixi.js';
+import { Sprite, Matrix } from 'pixi.js';
 import { TYPES } from '../../types';
 import type { ICoreService } from '../core/interface';
 import type { IImgService } from './interface';
-
-export type { IImgService } from './interface';
 
 @injectable()
 export class ImgService implements IImgService {
